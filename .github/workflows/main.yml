@@ -1,0 +1,126 @@
+name: Update All Playlists
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # Runs every 15 minutes
+  workflow_dispatch:
+
+concurrency:
+  group: update-playlists
+  cancel-in-progress: false
+
+jobs:
+  update-playlists:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout repo
+      - name: Checkout Private Repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.PRIVATE_REPO_NAME }}
+          token: ${{ secrets.PRIVATE_REPO_PAT }}
+
+      # Setup Python
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      # Install dependencies
+      - name: Install dependencies
+        run: pip install requests
+
+      # -------------------------
+      # Update JioTVPlus Playlist
+      - name: Update JioTVPlus Playlist
+        env:
+          JIOTVPLUS_INPUT: ${{ secrets.JIOTVPLUS_INPUT_PATH }}
+          JIOTVPLUS_OUTPUT: ${{ secrets.JIOTVPLUS_OUTPUT_PATH }}
+          JIOTVPLUS_URL: ${{ secrets.JIOTVPLUS_URL }}
+        run: python scripts/update_jiotvplus.py
+
+      # Update Zee5 Playlist
+      - name: Update Zee5 Playlist
+        env:
+          ZEE5_INPUT: ${{ secrets.ZEE5_INPUT_PATH }}
+          ZEE5_OUTPUT: ${{ secrets.ZEE5_OUTPUT_PATH }}
+          ZEE5_URL: ${{ secrets.ZEE5_URL }}
+        run: python scripts/update_zee5.py
+
+      # Update Fancode Playlist
+      - name: Update Fancode Playlist
+        env:
+          FANCODE_INPUT_PATH: ${{ secrets.FANCODE_INPUT_PATH }}
+          FANCODE_OUTPUT_PATH: ${{ secrets.FANCODE_OUTPUT_PATH }}
+          FANCODE_URL: ${{ secrets.FANCODE_URL }}
+        run: python scripts/update_fancode.py
+
+      # Update Willow Playlist
+      - name: Update Willow Playlist
+        env:
+          WILLOW_INPUT_PATH: ${{ secrets.WILLOW_INPUT_PATH }}
+          WILLOW_OUTPUT_PATH: ${{ secrets.WILLOW_OUTPUT_PATH }}
+          WILLOW_URL: ${{ secrets.WILLOW_URL }}
+        run: python scripts/update_willow.py
+
+      # -------------------------
+      # Commit & push only if any playlist changed
+      - name: Commit and Push Updated Playlists
+        run: |
+          RED='\033[0;31m'
+          GREEN='\033[0;32m'
+          YELLOW='\033[1;33m'
+          NC='\033[0m'
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          CHANGED_PLAYLISTS=()
+
+          # JioTVPlus
+          git add ${{ secrets.JIOTVPLUS_OUTPUT_PATH }}
+          if ! git diff --cached --quiet ${{ secrets.JIOTVPLUS_OUTPUT_PATH }}; then
+            CHANGED_PLAYLISTS+=("JioTVPlus")
+            echo -e "${GREEN}JioTVPlus playlist updated.${NC}"
+          else
+            echo -e "${YELLOW}JioTVPlus playlist unchanged.${NC}"
+          fi
+
+          # Zee5
+          git add ${{ secrets.ZEE5_OUTPUT_PATH }}
+          if ! git diff --cached --quiet ${{ secrets.ZEE5_OUTPUT_PATH }}; then
+            CHANGED_PLAYLISTS+=("Zee5")
+            echo -e "${GREEN}Zee5 playlist updated.${NC}"
+          else
+            echo -e "${YELLOW}Zee5 playlist unchanged.${NC}"
+          fi
+
+          # Fancode
+          git add ${{ secrets.FANCODE_OUTPUT_PATH }}
+          if ! git diff --cached --quiet ${{ secrets.FANCODE_OUTPUT_PATH }}; then
+            CHANGED_PLAYLISTS+=("Fancode")
+            echo -e "${GREEN}Fancode playlist updated.${NC}"
+          else
+            echo -e "${YELLOW}Fancode playlist unchanged.${NC}"
+          fi
+
+          # Willow
+          git add ${{ secrets.WILLOW_OUTPUT_PATH }}
+          if ! git diff --cached --quiet ${{ secrets.WILLOW_OUTPUT_PATH }}; then
+            CHANGED_PLAYLISTS+=("Willow")
+            echo -e "${GREEN}Willow playlist updated.${NC}"
+          else
+            echo -e "${YELLOW}Willow playlist unchanged.${NC}"
+          fi
+
+          # Commit & push if changed
+          if [ ${#CHANGED_PLAYLISTS[@]} -ne 0 ]; then
+            git commit -m "🔄 Auto-update playlists: ${CHANGED_PLAYLISTS[*]}"
+            git fetch origin main
+            git rebase origin/main || git rebase --abort
+            git push origin main
+            echo -e "${GREEN}✅ Playlists committed and pushed: ${CHANGED_PLAYLISTS[*]}${NC}"
+          else
+            echo -e "${RED}❌ No playlists changed. Skipping commit.${NC}"
+          fi
