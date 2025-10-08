@@ -22,7 +22,7 @@ jobs:
         JioTVPlus|JIOTVPLUS_INPUT_PATH|JIOTVPLUS_OUTPUT_PATH|JIOTVPLUS_URL|60
         Zee5|ZEE5_INPUT_PATH|ZEE5_OUTPUT_PATH|ZEE5_URL|60
         SonyLIV|SONYLIV_INPUT_PATH|SONYLIV_OUTPUT_PATH|SONYLIV_URL|60
-
+       
     steps:
       # -------------------------
       # Checkout repo
@@ -63,6 +63,18 @@ jobs:
           MINUTE=$(date +%M)
           echo "🕒 Current minute: $MINUTE"
 
+          # -------------------------
+          # Pre-check: ensure all required secrets exist
+          while IFS='|' read -r NAME INPUT_SECRET OUTPUT_SECRET URL_SECRET INTERVAL; do
+            for SECRET in "$INPUT_SECRET" "$OUTPUT_SECRET" "$URL_SECRET"; do
+              if [ -z "${!SECRET}" ]; then
+                echo -e "${RED}❌ Missing required secret: $SECRET for playlist $NAME${NC}"
+                exit 1
+              fi
+            done
+          done <<< "$PLAYLISTS"
+
+          # -------------------------
           # Loop through all playlists
           while IFS='|' read -r NAME INPUT_SECRET OUTPUT_SECRET URL_SECRET INTERVAL; do
             # Only run playlist if interval matches
@@ -87,9 +99,9 @@ jobs:
             else
               echo -e "${RED}⚠ $NAME output file does not exist: $OUTPUT_PATH${NC}"
             fi
-
           done <<< "$PLAYLISTS"
 
+          # -------------------------
           # Commit & push changes
           if [ ${#CHANGED_PLAYLISTS[@]} -ne 0 ]; then
             git commit -m "🔄 Auto-update playlists: ${CHANGED_PLAYLISTS[*]}"
@@ -98,4 +110,3 @@ jobs:
             echo -e "${GREEN}✅ Changes pushed for: ${CHANGED_PLAYLISTS[*]}${NC}"
           else
             echo -e "${RED}🚫 No playlists changed. Skipping commit.${NC}"
-          fi  
