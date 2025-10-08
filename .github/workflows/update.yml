@@ -135,3 +135,4 @@ jobs:
             echo -e "${GREEN}✅ Changes pushed for: ${CHANGED_PLAYLISTS[*]}${NC}"
           else
             echo -e "${RED}🚫 No playlists changed. Skipping commit.${NC}"
+          fi
