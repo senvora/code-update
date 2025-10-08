@@ -1,4 +1,4 @@
-name: Update
+name: Update All Playlists
 
 on:
   schedule:
@@ -53,9 +53,11 @@ jobs:
       # -------------------------
       # Run JioTVPlus, Zee5, SonyLIV only once every hour
       - name: Conditionally Update Hourly Playlists
+        shell: bash
         run: |
           MINUTE=$(date +%M)
           echo "🕒 Current minute: $MINUTE"
+
           if (( 10#$MINUTE == 0 )); then
             echo "⏰ Running hourly updates for JioTVPlus, Zee5 & SonyLIV..."
             python scripts/update_jiotvplus.py
@@ -63,6 +65,7 @@ jobs:
             python scripts/update_sonyliv.py
           else
             echo "⏩ Skipping hourly playlists this run."
+          fi
         env:
           JIOTVPLUS_INPUT: ${{ secrets.JIOTVPLUS_INPUT_PATH }}
           JIOTVPLUS_OUTPUT: ${{ secrets.JIOTVPLUS_OUTPUT_PATH }}
