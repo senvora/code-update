@@ -35,7 +35,7 @@ jobs:
         run: pip install requests
 
       # -------------------------
-      # Always run Fancode & Willow (every 15 minutes)
+      # Run Fancode & Willow (every 15 minutes)
       - name: Update Fancode Playlist
         env:
           FANCODE_INPUT_PATH: ${{ secrets.FANCODE_INPUT_PATH }}
@@ -80,6 +80,7 @@ jobs:
       # -------------------------
       # Commit & Push only if any playlist changed
       - name: Commit and Push Updated Playlists
+        shell: bash
         run: |
           set -e
 
@@ -95,10 +96,15 @@ jobs:
 
           echo -e "${YELLOW}🔍 Checking for playlist changes...${NC}"
 
+          # -------------------------
           # Function to safely add & check a playlist
           check_playlist() {
             local FILE=$1
             local NAME=$2
+
+            # Optional wait for script to finish creating file
+            sleep 1
+
             if [ -f "$FILE" ]; then
               git add "$FILE"
               if ! git diff --cached --quiet "$FILE"; then
@@ -113,6 +119,7 @@ jobs:
             fi
           }
 
+          # -------------------------
           # Check all playlists
           check_playlist "${{ secrets.JIOTVPLUS_OUTPUT_PATH }}" "JioTVPlus"
           check_playlist "${{ secrets.ZEE5_OUTPUT_PATH }}" "Zee5"
@@ -120,6 +127,7 @@ jobs:
           check_playlist "${{ secrets.FANCODE_OUTPUT_PATH }}" "Fancode"
           check_playlist "${{ secrets.WILLOW_OUTPUT_PATH }}" "Willow"
 
+          # -------------------------
           # Commit & push if anything changed
           if [ ${#CHANGED_PLAYLISTS[@]} -ne 0 ]; then
             git commit -m "🔄 Auto-update playlists: ${CHANGED_PLAYLISTS[*]}"
