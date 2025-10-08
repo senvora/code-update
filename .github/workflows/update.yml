@@ -95,57 +95,32 @@ jobs:
 
           echo -e "${YELLOW}🔍 Checking for playlist changes...${NC}"
 
-          # --- JioTVPlus ---
-          git add "${{ secrets.JIOTVPLUS_OUTPUT_PATH }}" || true
-          if ! git diff --cached --quiet "${{ secrets.JIOTVPLUS_OUTPUT_PATH }}"; then
-            CHANGED_PLAYLISTS+=("JioTVPlus")
-            echo -e "${GREEN}✅ JioTVPlus playlist updated.${NC}"
-          else
-            echo -e "${YELLOW}⚪ JioTVPlus playlist unchanged.${NC}"
-            git restore --staged "${{ secrets.JIOTVPLUS_OUTPUT_PATH }}" || true
-          fi
+          # Function to safely add & check a playlist
+          check_playlist() {
+            local FILE=$1
+            local NAME=$2
+            if [ -f "$FILE" ]; then
+              git add "$FILE"
+              if ! git diff --cached --quiet "$FILE"; then
+                CHANGED_PLAYLISTS+=("$NAME")
+                echo -e "${GREEN}✅ $NAME playlist updated.${NC}"
+              else
+                echo -e "${YELLOW}⚪ $NAME playlist unchanged.${NC}"
+                git restore --staged "$FILE" || true
+              fi
+            else
+              echo -e "${RED}⚠ $NAME output file does not exist: $FILE${NC}"
+            fi
+          }
 
-          # --- Zee5 ---
-          git add "${{ secrets.ZEE5_OUTPUT_PATH }}" || true
-          if ! git diff --cached --quiet "${{ secrets.ZEE5_OUTPUT_PATH }}"; then
-            CHANGED_PLAYLISTS+=("Zee5")
-            echo -e "${GREEN}✅ Zee5 playlist updated.${NC}"
-          else
-            echo -e "${YELLOW}⚪ Zee5 playlist unchanged.${NC}"
-            git restore --staged "${{ secrets.ZEE5_OUTPUT_PATH }}" || true
-          fi
+          # Check all playlists
+          check_playlist "${{ secrets.JIOTVPLUS_OUTPUT_PATH }}" "JioTVPlus"
+          check_playlist "${{ secrets.ZEE5_OUTPUT_PATH }}" "Zee5"
+          check_playlist "${{ secrets.SONYLIV_OUTPUT_PATH }}" "SonyLIV"
+          check_playlist "${{ secrets.FANCODE_OUTPUT_PATH }}" "Fancode"
+          check_playlist "${{ secrets.WILLOW_OUTPUT_PATH }}" "Willow"
 
-          # --- SonyLIV ---
-          git add "${{ secrets.SONYLIV_OUTPUT_PATH }}" || true
-          if ! git diff --cached --quiet "${{ secrets.SONYLIV_OUTPUT_PATH }}"; then
-            CHANGED_PLAYLISTS+=("SonyLIV")
-            echo -e "${GREEN}✅ SonyLIV playlist updated.${NC}"
-          else
-            echo -e "${YELLOW}⚪ SonyLIV playlist unchanged.${NC}"
-            git restore --staged "${{ secrets.SONYLIV_OUTPUT_PATH }}" || true
-          fi
-
-          # --- Fancode ---
-          git add "${{ secrets.FANCODE_OUTPUT_PATH }}" || true
-          if ! git diff --cached --quiet "${{ secrets.FANCODE_OUTPUT_PATH }}"; then
-            CHANGED_PLAYLISTS+=("Fancode")
-            echo -e "${GREEN}✅ Fancode playlist updated.${NC}"
-          else
-            echo -e "${YELLOW}⚪ Fancode playlist unchanged.${NC}"
-            git restore --staged "${{ secrets.FANCODE_OUTPUT_PATH }}" || true
-          fi
-
-          # --- Willow ---
-          git add "${{ secrets.WILLOW_OUTPUT_PATH }}" || true
-          if ! git diff --cached --quiet "${{ secrets.WILLOW_OUTPUT_PATH }}"; then
-            CHANGED_PLAYLISTS+=("Willow")
-            echo -e "${GREEN}✅ Willow playlist updated.${NC}"
-          else
-            echo -e "${YELLOW}⚪ Willow playlist unchanged.${NC}"
-            git restore --staged "${{ secrets.WILLOW_OUTPUT_PATH }}" || true
-          fi
-
-          # --- Commit & Push ---
+          # Commit & push if anything changed
           if [ ${#CHANGED_PLAYLISTS[@]} -ne 0 ]; then
             git commit -m "🔄 Auto-update playlists: ${CHANGED_PLAYLISTS[*]}"
             git pull --rebase origin main || git rebase --abort
@@ -153,4 +128,3 @@ jobs:
             echo -e "${GREEN}✅ Changes pushed for: ${CHANGED_PLAYLISTS[*]}${NC}"
           else
             echo -e "${RED}🚫 No playlists changed. Skipping commit.${NC}"
-          fi
