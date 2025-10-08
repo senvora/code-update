@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
+      # Multi-line string for all playlists
       # Format: Name|InputSecret|OutputSecret|URLSecret|IntervalInMinutes
       PLAYLISTS: |
         Fancode|FANCODE_INPUT_PATH|FANCODE_OUTPUT_PATH|FANCODE_URL|15
@@ -97,4 +98,4 @@ jobs:
             echo -e "${GREEN}✅ Changes pushed for: ${CHANGED_PLAYLISTS[*]}${NC}"
           else
             echo -e "${RED}🚫 No playlists changed. Skipping commit.${NC}"
-          fi
+          fi  
