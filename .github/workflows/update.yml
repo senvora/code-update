@@ -13,6 +13,15 @@ jobs:
   update-playlists:
     runs-on: ubuntu-latest
 
+    env:
+      # Format: Name|InputSecret|OutputSecret|URLSecret|IntervalInMinutes
+      PLAYLISTS: |
+        Fancode|FANCODE_INPUT_PATH|FANCODE_OUTPUT_PATH|FANCODE_URL|15
+        Willow|WILLOW_INPUT_PATH|WILLOW_OUTPUT_PATH|WILLOW_URL|15
+        JioTVPlus|JIOTVPLUS_INPUT_PATH|JIOTVPLUS_OUTPUT_PATH|JIOTVPLUS_URL|60
+        Zee5|ZEE5_INPUT_PATH|ZEE5_OUTPUT_PATH|ZEE5_URL|60
+        SonyLIV|SONYLIV_INPUT_PATH|SONYLIV_OUTPUT_PATH|SONYLIV_URL|60
+
     steps:
       # -------------------------
       # Checkout repo
@@ -35,53 +44,8 @@ jobs:
         run: pip install requests
 
       # -------------------------
-      # Run Fancode & Willow (every 15 minutes)
-      - name: Update Fancode Playlist
-        env:
-          FANCODE_INPUT_PATH: ${{ secrets.FANCODE_INPUT_PATH }}
-          FANCODE_OUTPUT_PATH: ${{ secrets.FANCODE_OUTPUT_PATH }}
-          FANCODE_URL: ${{ secrets.FANCODE_URL }}
-        run: python scripts/update_fancode.py
-
-      - name: Update Willow Playlist
-        env:
-          WILLOW_INPUT_PATH: ${{ secrets.WILLOW_INPUT_PATH }}
-          WILLOW_OUTPUT_PATH: ${{ secrets.WILLOW_OUTPUT_PATH }}
-          WILLOW_URL: ${{ secrets.WILLOW_URL }}
-        run: python scripts/update_willow.py
-
-      # -------------------------
-      # Run JioTVPlus, Zee5, SonyLIV only once every hour
-      - name: Conditionally Update Hourly Playlists
-        shell: bash
-        run: |
-          MINUTE=$(date +%M)
-          echo "🕒 Current minute: $MINUTE"
-
-          if (( 10#$MINUTE == 0 )); then
-            echo "⏰ Running hourly updates for JioTVPlus, Zee5 & SonyLIV..."
-            python scripts/update_jiotvplus.py
-            python scripts/update_zee5.py
-            python scripts/update_sonyliv.py
-          else
-            echo "⏩ Skipping hourly playlists this run."
-          fi
-        env:
-          JIOTVPLUS_INPUT: ${{ secrets.JIOTVPLUS_INPUT_PATH }}
-          JIOTVPLUS_OUTPUT: ${{ secrets.JIOTVPLUS_OUTPUT_PATH }}
-          JIOTVPLUS_URL: ${{ secrets.JIOTVPLUS_URL }}
-
-          ZEE5_INPUT: ${{ secrets.ZEE5_INPUT_PATH }}
-          ZEE5_OUTPUT: ${{ secrets.ZEE5_OUTPUT_PATH }}
-          ZEE5_URL: ${{ secrets.ZEE5_URL }}
-
-          SONYLIV_INPUT_PATH: ${{ secrets.SONYLIV_INPUT_PATH }}
-          SONYLIV_OUTPUT_PATH: ${{ secrets.SONYLIV_OUTPUT_PATH }}
-          SONYLIV_URL: ${{ secrets.SONYLIV_URL }}
-
-      # -------------------------
-      # Commit & Push only if any playlist changed
-      - name: Commit and Push Updated Playlists
+      # Update playlists
+      - name: Update Playlists
         shell: bash
         run: |
           set -e
@@ -95,39 +59,37 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
           CHANGED_PLAYLISTS=()
+          MINUTE=$(date +%M)
+          echo "🕒 Current minute: $MINUTE"
 
-          echo -e "${YELLOW}🔍 Checking for playlist changes...${NC}"
+          # Loop through all playlists
+          while IFS='|' read -r NAME INPUT_SECRET OUTPUT_SECRET URL_SECRET INTERVAL; do
+            # Only run playlist if interval matches
+            if (( INTERVAL == 15 || 10#$MINUTE % INTERVAL == 0 )); then
+              echo "⏰ Updating $NAME..."
+              python scripts/update_${NAME,,}.py
+            else
+              echo "⏩ Skipping $NAME this run"
+            fi
 
-          # -------------------------
-          # Function to safely add & check a playlist
-          check_playlist() {
-            local FILE=$1
-            local NAME=$2
-            sleep 1
-            if [ -f "$FILE" ]; then
-              git add "$FILE"
-              if ! git diff --cached --quiet "$FILE"; then
+            # Resolve output path from secret
+            OUTPUT_PATH="${!OUTPUT_SECRET}"
+            if [ -f "$OUTPUT_PATH" ]; then
+              git add "$OUTPUT_PATH"
+              if ! git diff --cached --quiet "$OUTPUT_PATH"; then
                 CHANGED_PLAYLISTS+=("$NAME")
                 echo -e "${GREEN}✅ $NAME playlist updated.${NC}"
               else
                 echo -e "${YELLOW}⚪ $NAME playlist unchanged.${NC}"
-                git restore --staged "$FILE" || true
+                git restore --staged "$OUTPUT_PATH" || true
               fi
             else
-              echo -e "${RED}⚠ $NAME output file does not exist: $FILE${NC}"
+              echo -e "${RED}⚠ $NAME output file does not exist: $OUTPUT_PATH${NC}"
             fi
-          }
 
-          # -------------------------
-          # Check all playlists
-          check_playlist "${{ secrets.JIOTVPLUS_OUTPUT_PATH }}" "JioTVPlus"
-          check_playlist "${{ secrets.ZEE5_OUTPUT_PATH }}" "Zee5"
-          check_playlist "${{ secrets.SONYLIV_OUTPUT_PATH }}" "SonyLIV"
-          check_playlist "${{ secrets.FANCODE_OUTPUT_PATH }}" "Fancode"
-          check_playlist "${{ secrets.WILLOW_OUTPUT_PATH }}" "Willow"
+          done <<< "$PLAYLISTS"
 
-          # -------------------------
-          # Commit & push if anything changed
+          # Commit & push changes
           if [ ${#CHANGED_PLAYLISTS[@]} -ne 0 ]; then
             git commit -m "🔄 Auto-update playlists: ${CHANGED_PLAYLISTS[*]}"
             git pull --rebase origin main || git rebase --abort
