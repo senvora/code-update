@@ -49,7 +49,7 @@ jobs:
       - name: Update Playlists
         shell: bash
         env:
-          # Explicitly pass all secrets here so Bash can see them
+          # Pass all secrets explicitly
           FANCODE_INPUT_PATH: ${{ secrets.FANCODE_INPUT_PATH }}
           FANCODE_OUTPUT_PATH: ${{ secrets.FANCODE_OUTPUT_PATH }}
           FANCODE_URL: ${{ secrets.FANCODE_URL }}
@@ -88,8 +88,12 @@ jobs:
           # -------------------------
           # Loop through all playlists
           while IFS='|' read -r NAME INPUT_SECRET OUTPUT_SECRET URL_SECRET INTERVAL; do
-            # Only run playlist if interval matches
-            if (( INTERVAL == 15 || 10#$MINUTE % INTERVAL == 0 )); then
+            # Skip empty lines
+            [[ -z "$NAME" ]] && continue
+            [[ -z "$INTERVAL" ]] && INTERVAL=0
+
+            # Only run playlist if interval matches and INTERVAL > 0
+            if (( INTERVAL > 0 && (INTERVAL == 15 || 10#$MINUTE % INTERVAL == 0) )); then
               echo "⏰ Updating $NAME..."
               python scripts/update_${NAME,,}.py
             else
@@ -97,19 +101,22 @@ jobs:
             fi
 
             # Resolve output path from secret
-            OUTPUT_PATH="${!OUTPUT_SECRET}"
-            if [ -f "$OUTPUT_PATH" ]; then
-              git add "$OUTPUT_PATH"
-              if ! git diff --cached --quiet "$OUTPUT_PATH"; then
-                CHANGED_PLAYLISTS+=("$NAME")
-                echo -e "${GREEN}✅ $NAME playlist updated.${NC}"
+            if [[ -n "$OUTPUT_SECRET" ]]; then
+              OUTPUT_PATH="${!OUTPUT_SECRET}"
+              if [ -f "$OUTPUT_PATH" ]; then
+                git add "$OUTPUT_PATH"
+                if ! git diff --cached --quiet "$OUTPUT_PATH"; then
+                  CHANGED_PLAYLISTS+=("$NAME")
+                  echo -e "${GREEN}✅ $NAME playlist updated.${NC}"
+                else
+                  echo -e "${YELLOW}⚪ $NAME playlist unchanged.${NC}"
+                  git restore --staged "$OUTPUT_PATH" || true
+                fi
               else
-                echo -e "${YELLOW}⚪ $NAME playlist unchanged.${NC}"
-                git restore --staged "$OUTPUT_PATH" || true
+                echo -e "${RED}⚠ $NAME output file does not exist: $OUTPUT_PATH${NC}"
               fi
-            else
-              echo -e "${RED}⚠ $NAME output file does not exist: $OUTPUT_PATH${NC}"
             fi
+
           done <<< "$PLAYLISTS"
 
           # -------------------------
