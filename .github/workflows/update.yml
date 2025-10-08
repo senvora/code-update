@@ -1,4 +1,4 @@
-name: Update All Playlists
+name: Update
 
 on:
   schedule:
@@ -63,7 +63,6 @@ jobs:
             python scripts/update_sonyliv.py
           else
             echo "⏩ Skipping hourly playlists this run."
-          fi
         env:
           JIOTVPLUS_INPUT: ${{ secrets.JIOTVPLUS_INPUT_PATH }}
           JIOTVPLUS_OUTPUT: ${{ secrets.JIOTVPLUS_OUTPUT_PATH }}
@@ -101,10 +100,7 @@ jobs:
           check_playlist() {
             local FILE=$1
             local NAME=$2
-
-            # Optional wait for script to finish creating file
             sleep 1
-
             if [ -f "$FILE" ]; then
               git add "$FILE"
               if ! git diff --cached --quiet "$FILE"; then
