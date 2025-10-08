@@ -22,7 +22,7 @@ jobs:
         JioTVPlus|JIOTVPLUS_INPUT_PATH|JIOTVPLUS_OUTPUT_PATH|JIOTVPLUS_URL|60
         Zee5|ZEE5_INPUT_PATH|ZEE5_OUTPUT_PATH|ZEE5_URL|60
         SonyLIV|SONYLIV_INPUT_PATH|SONYLIV_OUTPUT_PATH|SONYLIV_URL|60
-       
+
     steps:
       # -------------------------
       # Checkout repo
@@ -48,6 +48,28 @@ jobs:
       # Update playlists
       - name: Update Playlists
         shell: bash
+        env:
+          # Explicitly pass all secrets here so Bash can see them
+          FANCODE_INPUT_PATH: ${{ secrets.FANCODE_INPUT_PATH }}
+          FANCODE_OUTPUT_PATH: ${{ secrets.FANCODE_OUTPUT_PATH }}
+          FANCODE_URL: ${{ secrets.FANCODE_URL }}
+
+          WILLOW_INPUT_PATH: ${{ secrets.WILLOW_INPUT_PATH }}
+          WILLOW_OUTPUT_PATH: ${{ secrets.WILLOW_OUTPUT_PATH }}
+          WILLOW_URL: ${{ secrets.WILLOW_URL }}
+
+          JIOTVPLUS_INPUT_PATH: ${{ secrets.JIOTVPLUS_INPUT_PATH }}
+          JIOTVPLUS_OUTPUT_PATH: ${{ secrets.JIOTVPLUS_OUTPUT_PATH }}
+          JIOTVPLUS_URL: ${{ secrets.JIOTVPLUS_URL }}
+
+          ZEE5_INPUT_PATH: ${{ secrets.ZEE5_INPUT_PATH }}
+          ZEE5_OUTPUT_PATH: ${{ secrets.ZEE5_OUTPUT_PATH }}
+          ZEE5_URL: ${{ secrets.ZEE5_URL }}
+
+          SONYLIV_INPUT_PATH: ${{ secrets.SONYLIV_INPUT_PATH }}
+          SONYLIV_OUTPUT_PATH: ${{ secrets.SONYLIV_OUTPUT_PATH }}
+          SONYLIV_URL: ${{ secrets.SONYLIV_URL }}
+
         run: |
           set -e
 
@@ -62,17 +84,6 @@ jobs:
           CHANGED_PLAYLISTS=()
           MINUTE=$(date +%M)
           echo "🕒 Current minute: $MINUTE"
-
-          # -------------------------
-          # Pre-check: ensure all required secrets exist
-          while IFS='|' read -r NAME INPUT_SECRET OUTPUT_SECRET URL_SECRET INTERVAL; do
-            for SECRET in "$INPUT_SECRET" "$OUTPUT_SECRET" "$URL_SECRET"; do
-              if [ -z "${!SECRET}" ]; then
-                echo -e "${RED}❌ Missing required secret: $SECRET for playlist $NAME${NC}"
-                exit 1
-              fi
-            done
-          done <<< "$PLAYLISTS"
 
           # -------------------------
           # Loop through all playlists
@@ -110,3 +121,4 @@ jobs:
             echo -e "${GREEN}✅ Changes pushed for: ${CHANGED_PLAYLISTS[*]}${NC}"
           else
             echo -e "${RED}🚫 No playlists changed. Skipping commit.${NC}"
+          fi
