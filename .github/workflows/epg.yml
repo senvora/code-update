@@ -109,4 +109,4 @@ jobs:
           commit_message: "📺 Automatically updated Playlist & generate JSON"
           file_pattern: |
             public/guide/*.xml.gz
-            tempest-epg-grabber.zip
+            tempest_epg_grabber.zip
