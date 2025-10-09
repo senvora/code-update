@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: epg-grabber-main
+  cancel-in-progress: true  # Cancel any running workflow in the same group
+
 jobs:
   run-epg:
     runs-on: ubuntu-latest
