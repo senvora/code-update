@@ -3,7 +3,7 @@ name: EPG Grabber
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */3 * * *" 
+    - cron: "0 */4 * * *" 
     - cron: "00 22 * * *" 
 
 jobs:
