@@ -23,6 +23,11 @@ jobs:
           ref: main
           token: ${{ env.EPG_REPO_PAT }}
 
+      - name: Pull latest changes
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+
       - name: Configure Git
         run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
@@ -97,11 +102,6 @@ jobs:
           rm -f tempest_epg_grabber.zip
           7z a -tzip -p"$EPG_ZIP_PASSWORD" tempest_epg_grabber.zip ./temp_epg/* > /dev/null
           rm -rf temp_epg
-
-      - name: Pull latest changes
-        run: |
-          git fetch origin main
-          git reset --hard origin/main    
 
       - name: 💾 Commit and push updated files
         uses: stefanzweifel/git-auto-commit-action@v5
