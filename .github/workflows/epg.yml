@@ -1,11 +1,11 @@
-name: EPG Grabber
+name: 🛰️ EPG Grabber
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */4 * * *" 
-    - cron: "00 22 * * *" 
-    
+    - cron: "0 */4 * * *"
+    - cron: "00 22 * * *"
+
 permissions:
   contents: write
 
@@ -18,24 +18,23 @@ jobs:
       EPG_ZIP_PASSWORD: ${{ secrets.EPG_ZIP_PASSWORD }}
       EPG_JIO_URL: ${{ secrets.EPG_JIO_URL }}
       TZ: Asia/Kolkata
+
     steps:
-      - name: Checkout private repo
+      # --- Checkout Private Repo ---
+      - name: Checkout private EPG repo
         uses: actions/checkout@v4
         with:
           repository: ${{ env.EPG_REPO_NAME }}
           ref: main
           token: ${{ env.EPG_REPO_PAT }}
-
-      - name: Pull latest changes
-        run: |
-          git fetch origin main
-          git reset --hard origin/main
+          path: epg-repo  # clone into a folder
 
       - name: Configure Git
         run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "GitHub Actions Bot"
 
+      # --- Setup Environments ---
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -52,17 +51,22 @@ jobs:
           php-version: 8.4
           extensions: xml, imagick, zip, curl
 
+      # --- Install Dependencies ---
       - name: Install Node.js dependencies
-        run: npm install --silent --no-audit --no-fund --legacy-peer-deps
+        working-directory: epg-repo
+        run: npm install --legacy-peer-deps
 
       - name: Install Python dependencies
+        working-directory: epg-repo
         run: |
-          [ -f requirements.txt ] && pip install -q -r requirements.txt || true
+          [ -f requirements.txt ] && pip install -r requirements.txt || true
 
       - name: Install 7-Zip
         run: sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
 
-      - name: Grab all EPG in parallel
+      # --- Grab and Merge EPG ---
+      - name: Grab all EPGs in parallel
+        working-directory: epg-repo
         run: |
           set -e
           grab_provider() {
@@ -72,7 +76,7 @@ jobs:
             mkdir -p tmp_xml
             if [ -f "sites/$PROVIDER_PATH" ]; then
               echo "[$BASENAME] Running grab..."
-              if ! npm run grab --silent -- --channels="sites/$PROVIDER_PATH" --maxConnections=10 --days=2 --output="$OUTFILE" > /dev/null 2>&1; then
+              if ! npm run grab -- --channels="sites/$PROVIDER_PATH" --maxConnections=10 --days=2 --output="$OUTFILE"; then
                 echo "[$BASENAME] ❌ Failed, creating placeholder..."
                 echo "<?xml version='1.0' encoding='UTF-8'?><tv></tv>" > "$OUTFILE"
               else
@@ -89,27 +93,53 @@ jobs:
           wait
 
       - name: Merge XMLs
-        run: python3 -u scripts/epg/epg_grabber.py > /dev/null 2>&1 && echo "✅ Merged XMLs"
+        working-directory: epg-repo
+        run: python3 -u scripts/epg/epg_grabber.py
 
+      # --- Nightly Downloader ---
       - name: Run EPG Downloader (nightly)
         if: github.event.schedule == '00 22 * * *'
-        run: python3 -u scripts/epg/epg_downloader.py --url "$EPG_JIO_URL" > /dev/null 2>&1 && echo "✅ EPG Downloader finished"
+        working-directory: epg-repo
+        run: python3 -u scripts/epg/epg_downloader.py --url "$EPG_JIO_URL"
 
+      # --- Tempest PHP Grabber ---
       - name: Tempest PHP grabber
+        working-directory: epg-repo
         run: |
           mkdir -p temp_epg
-          7z x tempest_epg_grabber.zip -p"$EPG_ZIP_PASSWORD" -otemp_epg > /dev/null
-          php -d date.timezone=Asia/Kolkata temp_epg/tempest.php --epg config=tempest.config.xml > /dev/null 2>&1
-          python3 -u scripts/epg/tempest_epg.py > /dev/null 2>&1
+          7z x tempest_epg_grabber.zip -p"$EPG_ZIP_PASSWORD" -otemp_epg
+          php -d date.timezone=Asia/Kolkata temp_epg/tempest.php --epg config=tempest.config.xml
+          python3 -u scripts/epg/tempest_epg.py
           rm -f temp_epg/tempest_config/epg/epg.xml
           rm -f tempest_epg_grabber.zip
-          7z a -tzip -p"$EPG_ZIP_PASSWORD" tempest_epg_grabber.zip ./temp_epg/* > /dev/null
+          7z a -tzip -p"$EPG_ZIP_PASSWORD" tempest_epg_grabber.zip ./temp_epg/*
           rm -rf temp_epg
 
-      - name: 💾 Commit and push updated files
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "📺 Automatically updated Playlist & generate JSON"
-          file_pattern: |
-            public/guide/*.xml.gz
-            tempest_epg_grabber.zip
+      # --- Commit and Push Using Git CLI (Safe Retry, No Force) ---
+      - name: Commit and push changes to private repo
+        working-directory: epg-repo
+        run: |
+          echo "🔍 Checking for changes..."
+          git status
+
+          # Stage files
+          git add public/guide/*.xml.gz || true
+          git add tempest_epg_grabber.zip || true
+
+          # Commit if there are changes
+          if git diff --cached --quiet; then
+            echo "✅ No changes to commit."
+          else
+            git commit -m "📺 Automatically updated Playlist & generated JSON"
+
+            # Retry loop for push in case of conflicts
+            for i in 1 2 3; do
+              if git push https://${EPG_REPO_PAT}@github.com/${EPG_REPO_NAME}.git main; then
+                echo "🚀 Push complete!"
+                break
+              else
+                echo "⚠️ Push failed, pulling latest changes and retrying... (attempt $i)"
+                git pull --rebase origin main || true
+              fi
+            done
+          fi
