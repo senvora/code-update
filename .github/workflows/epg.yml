@@ -1,4 +1,4 @@
-name: 🛰️ EPG Grabber
+name: EPG Grabber
 
 on:
   workflow_dispatch:
