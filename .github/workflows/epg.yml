@@ -19,7 +19,6 @@ jobs:
     env:
       EPG_REPO_NAME: ${{ secrets.EPG_REPO_NAME }}
       EPG_REPO_PAT: ${{ secrets.EPG_REPO_PAT }}
-      EPG_ZIP_PASSWORD: ${{ secrets.EPG_ZIP_PASSWORD }}
       EPG_JIO_URL: ${{ secrets.EPG_JIO_URL }}
       TZ: Asia/Kolkata
 
@@ -31,7 +30,7 @@ jobs:
           repository: ${{ env.EPG_REPO_NAME }}
           ref: main
           token: ${{ env.EPG_REPO_PAT }}
-          path: epg-repo  # clone into a folder
+          path: epg-repo
 
       - name: Configure Git
         run: |
@@ -106,37 +105,32 @@ jobs:
         working-directory: epg-repo
         run: python3 -u scripts/epg/epg_downloader.py --url "$EPG_JIO_URL"
 
-      # --- Tempest PHP Grabber ---
+      # --- Tempest PHP Grabber (No Password) ---
       - name: Tempest PHP grabber
         working-directory: epg-repo
         run: |
           mkdir -p temp_epg
-          7z x tempest_epg_grabber.zip -p"$EPG_ZIP_PASSWORD" -otemp_epg
+          7z x tempest_epg_grabber.zip -otemp_epg || echo "⚠️ No existing zip found, continuing..."
           php -d date.timezone=Asia/Kolkata temp_epg/tempest.php --epg config=tempest.config.xml
           python3 -u scripts/epg/tempest_epg.py
           rm -f temp_epg/tempest_config/epg/epg.xml
           rm -f tempest_epg_grabber.zip
-          7z a -tzip -p"$EPG_ZIP_PASSWORD" tempest_epg_grabber.zip ./temp_epg/*
+          7z a -tzip tempest_epg_grabber.zip ./temp_epg/*
           rm -rf temp_epg
 
-      # --- Commit and Push Using Git CLI (Safe Retry, No Force) ---
+      # --- Commit and Push Using Git CLI ---
       - name: Commit and push changes to private repo
         working-directory: epg-repo
         run: |
           echo "🔍 Checking for changes..."
           git status
-
-          # Stage files
           git add public/guide/*.xml.gz || true
           git add tempest_epg_grabber.zip || true
 
-          # Commit if there are changes
           if git diff --cached --quiet; then
             echo "✅ No changes to commit."
           else
             git commit -m "📺 Automatically updated Playlist & generated JSON"
-
-            # Retry loop for push in case of conflicts
             for i in 1 2 3; do
               if git push https://${EPG_REPO_PAT}@github.com/${EPG_REPO_NAME}.git main; then
                 echo "🚀 Push complete!"
