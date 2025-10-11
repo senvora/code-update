@@ -17,7 +17,6 @@ jobs:
       # Multi-line string for all playlists
       # Format: Name|InputSecret|OutputSecret|URLSecret|IntervalInMinutes
       PLAYLISTS: |
-        Fancode|FANCODE_INPUT_PATH|FANCODE_OUTPUT_PATH|FANCODE_URL|15
         Willow|WILLOW_INPUT_PATH|WILLOW_OUTPUT_PATH|WILLOW_URL|15
         JioTVPlus|JIOTVPLUS_INPUT_PATH|JIOTVPLUS_OUTPUT_PATH|JIOTVPLUS_URL|15
         Zee5|ZEE5_INPUT_PATH|ZEE5_OUTPUT_PATH|ZEE5_URL|15
@@ -50,10 +49,6 @@ jobs:
         shell: bash
         env:
           # Pass all secrets explicitly
-          FANCODE_INPUT_PATH: ${{ secrets.FANCODE_INPUT_PATH }}
-          FANCODE_OUTPUT_PATH: ${{ secrets.FANCODE_OUTPUT_PATH }}
-          FANCODE_URL: ${{ secrets.FANCODE_URL }}
-
           WILLOW_INPUT_PATH: ${{ secrets.WILLOW_INPUT_PATH }}
           WILLOW_OUTPUT_PATH: ${{ secrets.WILLOW_OUTPUT_PATH }}
           WILLOW_URL: ${{ secrets.WILLOW_URL }}
